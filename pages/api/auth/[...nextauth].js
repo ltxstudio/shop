@@ -1,16 +1,31 @@
 import NextAuth from 'next-auth';
 import Providers from 'next-auth/providers';
-import dbConnect from '../../../lib/mongodb';
 
 export default NextAuth({
   providers: [
-    Providers.Credentials({
-      name: 'Credentials',
-      async authorize(credentials) {
-        await dbConnect();
-        // Add your own authentication logic here
-      },
+    Providers.Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
   ],
-  database: process.env.DATABASE_URL,
+  session: {
+    jwt: true,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  jwt: {
+    secret: process.env.JWT_SECRET,
+    encryption: true,
+  },
+  callbacks: {
+    async signIn({ account, profile }) {
+      if (account.provider === 'google') {
+        return true;
+      }
+      return false;
+    },
+    async redirect({ url, baseUrl }) {
+      // Redirect to home page after login
+      return url.startsWith(baseUrl) ? url : baseUrl;
+    },
+  },
 });
