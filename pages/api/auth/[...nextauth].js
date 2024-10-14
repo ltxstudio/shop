@@ -1,31 +1,40 @@
 import NextAuth from 'next-auth';
-import Providers from 'next-auth/providers';
+import GoogleProvider from 'next-auth/providers/google';
+import dbConnect from '../../../utils/dbConnect';
+import User from '../../../models/User';
 
 export default NextAuth({
   providers: [
-    Providers.Google({
+    GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
   ],
   session: {
-    jwt: true,
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
-  jwt: {
-    secret: process.env.JWT_SECRET,
-    encryption: true,
+    strategy: 'jwt',
   },
   callbacks: {
-    async signIn({ account, profile }) {
-      if (account.provider === 'google') {
-        return true;
+    async jwt({ token, account, profile }) {
+      if (account && profile) {
+        await dbConnect();
+        let user = await User.findOne({ email: profile.email });
+
+        if (!user) {
+          user = await User.create({
+            name: profile.name,
+            email: profile.email,
+          });
+        }
+
+        token.id = user.id;
       }
-      return false;
+      return token;
     },
-    async redirect({ url, baseUrl }) {
-      // Redirect to home page after login
-      return url.startsWith(baseUrl) ? url : baseUrl;
+    async session({ session, token }) {
+      session.user.id = token.id;
+      session.user.name = token.name;
+      session.user.email = token.email;
+      return session;
     },
   },
 });
